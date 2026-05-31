@@ -21,6 +21,7 @@ npm run start        # Preview built app
 ```
 
 TypeScript is split across two configs:
+
 - `tsconfig.node.json` — main process + preload (Node environment)
 - `tsconfig.web.json` — renderer process (browser environment)
 
@@ -44,6 +45,7 @@ src/
 ## Design System: Carbon
 
 This project uses [Carbon Design System](https://carbondesignsystem.com/) (`@carbon/react`). When adding or modifying UI:
+
 - Prefer Carbon components over custom implementations
 - Follow Carbon's 8px spacing grid and type scale
 - Use Carbon tokens for color and motion — do not hardcode hex values
@@ -52,6 +54,7 @@ This project uses [Carbon Design System](https://carbondesignsystem.com/) (`@car
 ## Git Discipline
 
 ### Pre-push: TypeScript must pass
+
 Before every `git push`, run `npm run typecheck`. Push is blocked if type errors exist. This is enforced via a git hook — set it up with:
 
 ```bash
@@ -61,6 +64,7 @@ npm run typecheck || exit 1
 ```
 
 ### Commit messages
+
 Use Conventional Commits format:
 
 ```

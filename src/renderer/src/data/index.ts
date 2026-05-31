@@ -356,8 +356,8 @@ export const VV_CLIENTES: Cliente[] = [
 
 export const VV_SEG: Record<Segmento, SegConfig> = {
   activo: { label: 'Activo', tag: 'green', status: 'active' },
-  riesgo: { label: 'En riesgo', tag: 'gray', status: 'pending' },
-  perdido: { label: 'Perdido', tag: 'gray', status: 'inactive' }
+  riesgo: { label: 'En riesgo', tag: 'yellow', status: 'pending' },
+  perdido: { label: 'Perdido', tag: 'red', status: 'failed' }
 }
 
 export const VV_MOTIVO: Record<Motivo, MotivoConfig> = {
@@ -598,10 +598,16 @@ export const VV_SERIE_MENSUAL: SerieMensual[] = [
 ]
 
 export const VV_SEGMENTOS: SegmentoData[] = [
-  { key: 'activo', label: 'Activos', valor: 142, color: '#0f62fe' },
-  { key: 'riesgo', label: 'En riesgo', valor: 38, color: '#78a9ff' },
-  { key: 'perdido', label: 'Perdidos', valor: 21, color: '#c6c6c6' }
+  { key: 'activo', label: 'Activos', valor: 142, color: '#24a148' },
+  { key: 'riesgo', label: 'En riesgo', valor: 38, color: '#f1c21b' },
+  { key: 'perdido', label: 'Perdidos', valor: 21, color: '#da1e28' }
 ]
+
+/* Colores por canal (semánticos): WhatsApp verde, Email azul */
+export const VV_CANAL_COLOR: Record<'WhatsApp' | 'Email', { tag: string; hex: string }> = {
+  WhatsApp: { tag: 'green', hex: '#24a148' },
+  Email: { tag: 'blue', hex: '#0f62fe' }
+}
 
 export const VV_POR_TIPO: TipoData[] = [
   { label: 'Control anual', valor: 22, color: '#0f62fe' },
@@ -622,3 +628,204 @@ export function vvCliente(id: string): Cliente | undefined {
 export function vvFmtMonto(n: number): string {
   return '$' + n.toLocaleString('es-CO')
 }
+
+/* ---- Datos por sede ------------------------------------------------------- */
+import type { Sede, SedeVista, Notificacion, Empleado } from './types'
+
+/* Color de avatar determinístico por cliente (a partir de su id/nombre) */
+const VV_AVATAR_PALETTE = [
+  '#0f62fe',
+  '#198038',
+  '#8a3ffc',
+  '#d02670',
+  '#007d79',
+  '#fa4d56',
+  '#ff832b',
+  '#1192e8',
+  '#9f1853',
+  '#005d5d',
+  '#a56eff',
+  '#ee5396'
+]
+export function vvAvatarColor(seed: string): string {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return VV_AVATAR_PALETTE[h % VV_AVATAR_PALETTE.length]
+}
+
+export interface Dataset {
+  clientes: Cliente[]
+  recordatorios: Recordatorio[]
+  historial: MensajeHistorial[]
+  kpi: KPIs
+  segmentos: SegmentoData[]
+  serie: SerieMensual[]
+  porTipo: TipoData[]
+  cliente: (id: string) => Cliente | undefined
+}
+
+function construirDataset(
+  clientes: Cliente[],
+  kpi: KPIs,
+  segmentos: SegmentoData[],
+  serie: SerieMensual[]
+): Dataset {
+  const ids = new Set(clientes.map((c) => c.id))
+  return {
+    clientes,
+    recordatorios: VV_RECORDATORIOS.filter((r) => ids.has(r.cli)),
+    historial: VV_HISTORIAL.filter((h) => ids.has(h.cli)),
+    kpi,
+    segmentos,
+    serie,
+    porTipo: VV_POR_TIPO,
+    cliente: (id) => clientes.find((c) => c.id === id)
+  }
+}
+
+// Tocancipá: sede más pequeña (otra cartera y otros números)
+const KPI_TOCANCIPA: KPIs = {
+  activos: 58,
+  activosDelta: 4,
+  riesgo: 14,
+  riesgoCrit: 2,
+  perdidos: 9,
+  recuperados: 2,
+  pendientes: 6,
+  programados: 5,
+  enviadosMes: 19,
+  leidos: 13,
+  tasaRespuesta: 29,
+  tasaDelta: 6,
+  ingresoMes: 7.2
+}
+
+const SEG_TOCANCIPA: SegmentoData[] = [
+  { key: 'activo', label: 'Activos', valor: 58, color: '#24a148' },
+  { key: 'riesgo', label: 'En riesgo', valor: 14, color: '#f1c21b' },
+  { key: 'perdido', label: 'Perdidos', valor: 9, color: '#da1e28' }
+]
+
+const SERIE_TOCANCIPA: SerieMensual[] = [
+  { mes: 'Nov', enviados: 12, respondidos: 3 },
+  { mes: 'Dic', enviados: 18, respondidos: 5 },
+  { mes: 'Ene', enviados: 15, respondidos: 4 },
+  { mes: 'Feb', enviados: 17, respondidos: 5 },
+  { mes: 'Mar', enviados: 20, respondidos: 6 },
+  { mes: 'Abr', enviados: 19, respondidos: 6 }
+]
+
+const DATASET_CENTROCHIA = construirDataset(VV_CLIENTES, VV_KPI, VV_SEGMENTOS, VV_SERIE_MENSUAL)
+const DATASET_TOCANCIPA = construirDataset(
+  VV_CLIENTES.slice(8, 17),
+  KPI_TOCANCIPA,
+  SEG_TOCANCIPA,
+  SERIE_TOCANCIPA
+)
+
+// Todas las sedes: vista general consolidada (solo gerente)
+const KPI_TODAS: KPIs = {
+  activos: 200,
+  activosDelta: 12,
+  riesgo: 52,
+  riesgoCrit: 5,
+  perdidos: 30,
+  recuperados: 7,
+  pendientes: 21,
+  programados: 17,
+  enviadosMes: 67,
+  leidos: 48,
+  tasaRespuesta: 32,
+  tasaDelta: 9,
+  ingresoMes: 25.6
+}
+
+const SEG_TODAS: SegmentoData[] = [
+  { key: 'activo', label: 'Activos', valor: 200, color: '#24a148' },
+  { key: 'riesgo', label: 'En riesgo', valor: 52, color: '#f1c21b' },
+  { key: 'perdido', label: 'Perdidos', valor: 30, color: '#da1e28' }
+]
+
+const SERIE_TODAS: SerieMensual[] = VV_SERIE_MENSUAL.map((d, i) => ({
+  mes: d.mes,
+  enviados: d.enviados + SERIE_TOCANCIPA[i].enviados,
+  respondidos: d.respondidos + SERIE_TOCANCIPA[i].respondidos
+}))
+
+const DATASET_TODAS = construirDataset(VV_CLIENTES, KPI_TODAS, SEG_TODAS, SERIE_TODAS)
+
+export const VV_SEDES: Sede[] = ['CD Centrochía', 'CD Tocancipá']
+export const VV_SEDES_VISTA: SedeVista[] = ['Todas las sedes', 'CD Centrochía', 'CD Tocancipá']
+
+export function vvDataset(sede: SedeVista): Dataset {
+  if (sede === 'Todas las sedes') return DATASET_TODAS
+  if (sede === 'CD Tocancipá') return DATASET_TOCANCIPA
+  return DATASET_CENTROCHIA
+}
+
+/* ---- Empleados de la óptica ---------------------------------------------- */
+export const VV_EMPLEADOS: Empleado[] = [
+  {
+    id: 'marlen',
+    nombre: 'Marlen Vera',
+    ini: 'MV',
+    rol: 'gerente',
+    email: 'marlen.vera@opticalia.co',
+    telefono: '+57 311 200 4501',
+    desde: 'Ene 2021'
+  },
+  {
+    id: 'francia',
+    nombre: 'Francia Ramos',
+    ini: 'FR',
+    rol: 'asesora',
+    email: 'francia.ramos@opticalia.co',
+    telefono: '+57 320 884 1190',
+    desde: 'Mar 2023'
+  },
+  {
+    id: 'alejandra',
+    nombre: 'Alejandra Chiquito',
+    ini: 'AC',
+    rol: 'asesora',
+    email: 'alejandra.chiquito@opticalia.co',
+    telefono: '+57 315 447 2208',
+    desde: 'Ago 2024'
+  }
+]
+
+/* ---- Notificaciones ------------------------------------------------------- */
+export const VV_NOTIFICACIONES: Notificacion[] = [
+  {
+    id: 'n01',
+    tipo: 'riesgo',
+    titulo: '3 clientes críticos en riesgo',
+    detalle: 'Cristo Reyes, María López y Jorge Vargas llevan +9 meses sin contacto.',
+    fecha: 'Hace 10 min',
+    leida: false
+  },
+  {
+    id: 'n02',
+    tipo: 'respuesta',
+    titulo: 'Carlos Ruiz respondió',
+    detalle: 'Respondió a la tarjeta de cumpleaños por WhatsApp.',
+    fecha: 'Hace 1 h',
+    leida: false
+  },
+  {
+    id: 'n03',
+    tipo: 'recordatorio',
+    titulo: '15 recordatorios pendientes',
+    detalle: 'Tienes recordatorios listos para enviar hoy.',
+    fecha: 'Hace 3 h',
+    leida: false
+  },
+  {
+    id: 'n04',
+    tipo: 'sistema',
+    titulo: 'Reporte mensual disponible',
+    detalle: 'El resumen de abril ya se puede exportar desde Historial.',
+    fecha: 'Ayer',
+    leida: true
+  }
+]

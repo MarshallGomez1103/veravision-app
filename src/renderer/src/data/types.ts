@@ -1,5 +1,31 @@
 /* Vera Vision — tipos de datos compartidos */
 
+export type Sede = 'CD Centrochía' | 'CD Tocancipá'
+export type SedeVista = Sede | 'Todas las sedes'
+export type Rol = 'gerente' | 'asesora'
+
+export interface Usuario {
+  id: string
+  nombre: string
+  ini: string
+  rol: Rol
+  email: string
+}
+
+export interface Empleado extends Usuario {
+  telefono: string
+  desde: string
+}
+
+export interface Notificacion {
+  id: string
+  tipo: 'riesgo' | 'recordatorio' | 'respuesta' | 'sistema'
+  titulo: string
+  detalle: string
+  fecha: string
+  leida: boolean
+}
+
 export type Segmento = 'activo' | 'riesgo' | 'perdido'
 export type Motivo = 'control' | 'cumple' | 'postventa'
 export type Canal = 'WhatsApp' | 'Email'
@@ -77,8 +103,8 @@ export interface TipoData {
 
 export interface SegConfig {
   label: string
-  tag: 'green' | 'gray'
-  status: 'active' | 'pending' | 'inactive'
+  tag: 'green' | 'gray' | 'yellow' | 'red'
+  status: 'active' | 'pending' | 'inactive' | 'failed'
 }
 
 export interface MotivoConfig {

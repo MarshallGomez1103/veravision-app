@@ -16,7 +16,12 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
-  font-family: 'IBM Plex Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'IBM Plex Sans',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -71,13 +76,62 @@ input::placeholder {
   background: transparent;
 }
 
-/* Carbon theme data-attribute override — aplicado por App.tsx */
+/* Skeleton de carga (estado "loading") */
+.vv-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--cds-layer-accent-01) 0%,
+    var(--cds-layer-hover-01, #e8e8e8) 50%,
+    var(--cds-layer-accent-01) 100%
+  );
+  background-size: 200% 100%;
+  animation: vv-shimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes vv-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Foco visible accesible (Carbon) en todos los controles interactivos */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[role='checkbox']:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--cds-focus, #0f62fe);
+  outline-offset: -2px;
+}
+
+/* El tema real de Carbon (.cds--g10 / .cds--g100) lo aplica App.tsx en el contenedor raíz,
+   lo que define TODOS los tokens --cds-* por tema (texto, bordes, capas, etc.).
+   Estos overrides solo refuerzan el color de fondo base de la app. */
 [data-carbon-theme='g10'] {
   --cds-background: #f4f4f4;
-  --cds-layer-01: #ffffff;
 }
 
 [data-carbon-theme='g100'] {
   --cds-background: #161616;
-  --cds-layer-01: #262626;
+}
+
+/* Spinner de carga para botones */
+.vv-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: vv-spin 0.6s linear infinite;
+  display: inline-block;
+}
+
+@keyframes vv-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

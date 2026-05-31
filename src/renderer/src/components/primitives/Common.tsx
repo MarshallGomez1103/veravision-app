@@ -1,17 +1,19 @@
 /* Vera Vision — piezas compartidas entre pantallas */
-import { useState } from 'react'
-import { ArrowUp, ArrowDown, ArrowRight, View, Time } from '@carbon/icons-react'
+import { useState, useEffect, useRef } from 'react'
+import { ArrowUp, ArrowDown, ArrowRight, View, Time, Calendar } from '@carbon/icons-react'
 import { Sparkline } from './Charts'
 import {
-  VV_CLIENTES,
   VV_SEG,
   VV_MOTIVO,
   VV_HISTORIAL,
   VV_HIST_ESTADO,
   VV_TITULO,
-  vvFmtMonto
+  VV_CANAL_COLOR,
+  vvFmtMonto,
+  vvAvatarColor
 } from '@renderer/data'
-import type { Cliente, Motivo } from '@renderer/data/types'
+import { useVV } from '@renderer/state/app-context'
+import type { Cliente, Motivo, MensajeHistorial } from '@renderer/data/types'
 
 /* ---- PageHeader ---------------------------------------------------------- */
 interface PageHeaderProps {
@@ -81,16 +83,13 @@ export function MetricTile({
   accent
 }: MetricTileProps): React.JSX.Element {
   return (
-    <div
+    <Card
       style={{
-        background: 'var(--cds-layer-01)',
-        border: '1px solid var(--cds-border-subtle-01)',
         padding: '16px 16px 14px',
-        display: 'flex',
-        flexDirection: 'column',
         minHeight: 132,
         boxSizing: 'border-box'
       }}
+      hoverable={true}
     >
       <div style={{ fontSize: 13, color: 'var(--cds-text-secondary)', marginBottom: 'auto' }}>
         {label}
@@ -146,7 +145,7 @@ export function MetricTile({
         )}
         {foot && <span style={{ color: 'var(--cds-text-helper)' }}>{foot}</span>}
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -197,20 +196,64 @@ export function CardHead({ title, action, onAction }: CardHeadProps): React.JSX.
 
 export function Card({
   children,
-  style = {}
+  style = {},
+  hoverable = true
 }: {
   children: React.ReactNode
   style?: React.CSSProperties
+  hoverable?: boolean
 }): React.JSX.Element {
+  const [coords, setCoords] = useState({ x: 0, y: 0 })
+  const [isHovered, setIsHovered] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return
+    const rect = cardRef.current.getBoundingClientRect()
+    setCoords({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    })
+  }
+
   return (
     <div
+      ref={cardRef}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
-        background: 'var(--cds-layer-01)',
-        border: '1px solid var(--cds-border-subtle-01)',
+        position: 'relative',
+        background: 'var(--cds-layer-01, #262626)',
+        border: '1px solid var(--cds-border-subtle-01, #393939)',
+        borderRadius: 12,
+        padding: 0,
+        overflow: 'hidden',
+        boxShadow: isHovered
+          ? '0 12px 32px rgba(0,0,0,0.22), 0 0 1px 1px var(--vv-accent, #0f62fe)'
+          : '0 4px 16px rgba(0,0,0,0.12)',
+        transform: isHovered && hoverable ? 'translateY(-2px)' : 'none',
+        transition: 'transform 200ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1), border-color 200ms',
+        display: 'flex',
+        flexDirection: 'column',
         ...style
       }}
     >
-      {children}
+      {/* Spotlight cursor glow effect */}
+      {isHovered && hoverable && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: `radial-gradient(150px circle at ${coords.x}px ${coords.y}px, rgba(var(--vv-accent-rgb, 15, 98, 254), 0.07), transparent 80%)`,
+            pointerEvents: 'none',
+            zIndex: 0
+          }}
+        />
+      )}
+      <div style={{ position: 'relative', zIndex: 1, height: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}>
+        {children}
+      </div>
     </div>
   )
 }
@@ -285,29 +328,35 @@ export function Status({
 export function Avatar({
   ini,
   size = 32,
-  bg = '#0f62fe',
-  color = '#fff'
+  bg,
+  color,
+  seed
 }: {
   ini: string
   size?: number
   bg?: string
   color?: string
+  seed?: string
 }): React.JSX.Element {
+  const baseColor = seed ? vvAvatarColor(seed) : (bg ?? '#0f62fe')
+  const background = `linear-gradient(135deg, ${baseColor} 0%, #393939 100%)`
+  const fg = seed ? '#fff' : (color ?? '#fff')
   return (
     <span
       style={{
         width: size,
         height: size,
         borderRadius: '50%',
-        background: bg,
-        color,
+        background,
+        color: fg,
         flexShrink: 0,
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         fontSize: size * 0.36,
         fontWeight: 600,
-        letterSpacing: '.02em'
+        letterSpacing: '.02em',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
       }}
     >
       {ini}
@@ -324,7 +373,8 @@ const TAG_COLORS: Record<string, [string, string]> = {
   teal: ['#9ef0f0', '#005d5d'],
   gray: ['#e0e0e0', '#393939'],
   cyan: ['#bae6ff', '#00539a'],
-  magenta: ['#ffd6e8', '#9f1853']
+  magenta: ['#ffd6e8', '#9f1853'],
+  yellow: ['#fddc69', '#684e00']
 }
 
 export function Tag({
@@ -374,11 +424,15 @@ interface BtnProps {
 }
 
 const BTN_STYLES: Record<string, React.CSSProperties> = {
-  primary: { background: '#0f62fe', color: '#fff' },
-  secondary: { background: '#393939', color: '#fff' },
-  tertiary: { background: 'transparent', color: '#0f62fe', border: '1px solid #0f62fe' },
-  ghost: { background: 'transparent', color: '#0f62fe' },
-  danger: { background: '#da1e28', color: '#fff' }
+  primary: { background: 'var(--cds-button-primary)', color: 'var(--cds-text-on-color)' },
+  secondary: { background: 'var(--cds-button-secondary)', color: 'var(--cds-text-on-color)' },
+  tertiary: {
+    background: 'transparent',
+    color: 'var(--cds-link-primary)',
+    border: '1px solid var(--cds-button-tertiary)'
+  },
+  ghost: { background: 'transparent', color: 'var(--cds-link-primary)' },
+  danger: { background: 'var(--cds-button-danger-primary)', color: 'var(--cds-text-on-color)' }
 }
 
 export function Btn({
@@ -396,11 +450,11 @@ export function Btn({
   const minH = size === 'sm' ? 32 : size === 'md' ? 40 : 48
 
   const hoverBg: Record<string, string> = {
-    primary: '#0050e6',
-    secondary: '#474747',
-    tertiary: '#0f62fe',
-    ghost: 'rgba(141,141,141,0.12)',
-    danger: '#b81921'
+    primary: 'var(--cds-button-primary-hover)',
+    secondary: 'var(--cds-button-secondary-hover)',
+    tertiary: 'var(--cds-button-tertiary)',
+    ghost: 'var(--cds-background-hover)',
+    danger: 'var(--cds-button-danger-hover)'
   }
 
   const base: React.CSSProperties = {
@@ -417,16 +471,18 @@ export function Btn({
     position: 'relative',
     padding: icon ? '0 60px 0 16px' : '0 16px',
     whiteSpace: 'nowrap',
-    borderRadius: 0,
-    transition: 'background 70ms',
+    borderRadius: 6,
+    transition: 'all 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    boxShadow: hover && !disabled && kind === 'primary' ? '0 4px 14px rgba(var(--vv-accent-rgb), 0.35)' : 'none',
     ...BTN_STYLES[kind],
     ...(hover && !disabled ? { background: hoverBg[kind] } : {}),
-    ...(kind === 'tertiary' ? { border: '1px solid #0f62fe' } : {}),
-    ...(hover && kind === 'tertiary' && !disabled ? { color: '#fff' } : {}),
+    ...(kind === 'tertiary' ? { border: '1px solid var(--cds-button-tertiary)' } : {}),
+    ...(hover && kind === 'tertiary' && !disabled ? { color: 'var(--cds-text-on-color)' } : {}),
     ...(disabled
       ? {
-          background: kind === 'ghost' || kind === 'tertiary' ? 'transparent' : '#c6c6c6',
-          color: '#8d8d8d',
+          background:
+            kind === 'ghost' || kind === 'tertiary' ? 'transparent' : 'var(--cds-button-disabled)',
+          color: 'var(--cds-text-on-color-disabled)',
           borderColor: 'transparent'
         }
       : {}),
@@ -904,9 +960,10 @@ export function Modal({
           width: `min(${width}px, 92vw)`,
           maxHeight: '90vh',
           background: 'var(--cds-layer-01)',
+          border: '1px solid var(--cds-border-subtle-01)',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 8px 24px var(--cds-shadow)'
+          boxShadow: '0 12px 40px var(--cds-shadow, rgba(0,0,0,0.5))'
         }}
       >
         <div
@@ -975,17 +1032,20 @@ export function Modal({
         >
           {children}
         </div>
-        <div style={{ display: 'flex' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 12,
+            padding: 16,
+            borderTop: '1px solid var(--cds-border-subtle-01)'
+          }}
+        >
           <Btn
             kind="secondary"
             size="lg"
             onClick={onClose}
-            style={{
-              flex: 1,
-              minHeight: 64,
-              alignItems: 'flex-start',
-              paddingTop: 15
-            }}
+            style={{ minWidth: 150, justifyContent: 'center' }}
           >
             {secondaryText}
           </Btn>
@@ -994,12 +1054,7 @@ export function Modal({
             size="lg"
             onClick={onPrimary}
             disabled={primaryDisabled}
-            style={{
-              flex: 1,
-              minHeight: 64,
-              alignItems: 'flex-start',
-              paddingTop: 15
-            }}
+            style={{ minWidth: 180, justifyContent: 'center' }}
           >
             {primaryText}
           </Btn>
@@ -1048,9 +1103,10 @@ export function SidePanel({
           width: `min(${width}px, 100%)`,
           height: '100%',
           background: 'var(--cds-layer-01)',
+          borderLeft: '1px solid var(--cds-border-subtle-01)',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '-2px 0 12px var(--cds-shadow)'
+          boxShadow: '-4px 0 24px var(--cds-shadow, rgba(0,0,0,0.5))'
         }}
       >
         <div
@@ -1224,21 +1280,397 @@ export function Toast({
   )
 }
 
+/* ---- DateField (input con calendario) ------------------------------------ */
+const VV_MESES = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre'
+]
+const VV_DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+
+export function DateField({
+  label,
+  value,
+  onChange
+}: {
+  label?: string
+  value: string
+  onChange: (v: string) => void
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [y, setY] = useState(2026)
+  const [m, setM] = useState(5) // junio (0-index)
+
+  useEffect(() => {
+    if (open && value) {
+      const parts = value.toLowerCase().split(' de ')
+      if (parts.length === 2) {
+        const monthName = parts[1].split(',')[0].trim()
+        const yearNum = parseInt(parts[1].split(',')[1]?.trim() || '2026')
+        const monthIdx = VV_MESES.indexOf(monthName)
+        if (monthIdx !== -1) setM(monthIdx)
+        if (!isNaN(yearNum)) setY(yearNum)
+      }
+    }
+  }, [open, value])
+
+  const HOY = { y: 2026, m: 5, d: 3 } // "hoy" del prototipo: miércoles 3 de junio, 2026
+  const esPasado = (d: number): boolean =>
+    y < HOY.y || (y === HOY.y && (m < HOY.m || (m === HOY.m && d < HOY.d)))
+
+  const primerDia = (new Date(y, m, 1).getDay() + 6) % 7 // lunes = 0
+  const dias = new Date(y, m + 1, 0).getDate()
+  const prevMes = (): void => (m === 0 ? (setM(11), setY(y - 1)) : setM(m - 1))
+  const nextMes = (): void => (m === 11 ? (setM(0), setY(y + 1)) : setM(m + 1))
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {label && (
+        <span
+          style={{
+            fontSize: 12,
+            letterSpacing: '.32px',
+            color: 'var(--cds-text-secondary)',
+            display: 'block',
+            marginBottom: 6
+          }}
+        >
+          {label}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          height: 40,
+          width: '100%',
+          boxSizing: 'border-box',
+          background: 'var(--cds-field-01)',
+          border: 'none',
+          borderBottom: '1px solid var(--cds-border-strong-01)',
+          padding: '0 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          fontFamily: 'IBM Plex Sans, system-ui, sans-serif',
+          fontSize: 14,
+          color: 'var(--cds-text-primary)',
+          cursor: 'pointer',
+          textAlign: 'left'
+        }}
+      >
+        <span style={{ flex: 1 }}>{value || 'Seleccionar fecha'}</span>
+        <Calendar size={16} style={{ color: 'var(--cds-icon-primary)' }} />
+      </button>
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 59 }} onClick={() => setOpen(false)} />
+          <div
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              marginTop: 4,
+              width: 280,
+              background: 'var(--cds-layer-02)',
+              border: '1px solid var(--cds-border-strong-01)',
+              boxShadow: '0 8px 24px var(--cds-shadow, rgba(0,0,0,0.5))',
+              zIndex: 60,
+              padding: 12
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+              <CalNav onClick={prevMes} dir="prev" />
+              <span
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: 'var(--cds-text-primary)',
+                  textTransform: 'capitalize'
+                }}
+              >
+                {VV_MESES[m]} {y}
+              </span>
+              <CalNav onClick={nextMes} dir="next" />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2 }}>
+              {VV_DIAS.map((d) => (
+                <div
+                  key={d}
+                  style={{
+                    textAlign: 'center',
+                    fontSize: 11,
+                    color: 'var(--cds-text-secondary)',
+                    fontWeight: 600,
+                    padding: '4px 0'
+                  }}
+                >
+                  {d}
+                </div>
+              ))}
+              {Array.from({ length: primerDia }).map((_, i) => (
+                <span key={'e' + i} />
+              ))}
+              {Array.from({ length: dias }).map((_, i) => {
+                const dia = i + 1
+                const pasado = esPasado(dia)
+                const hoy = y === HOY.y && m === HOY.m && dia === HOY.d
+                const seleccionado = value === `${dia} de ${VV_MESES[m]}, ${y}`
+                return (
+                  <button
+                    key={dia}
+                    type="button"
+                    disabled={pasado}
+                    onClick={() => {
+                      if (pasado) return
+                      onChange(`${dia} de ${VV_MESES[m]}, ${y}`)
+                      setOpen(false)
+                    }}
+                    style={{
+                      height: 32,
+                      border: hoy ? '1.5px solid var(--cds-border-interactive)' : 'none',
+                      background: seleccionado ? 'var(--cds-button-primary)' : 'transparent',
+                      borderRadius: 2,
+                      cursor: pasado ? 'not-allowed' : 'pointer',
+                      fontFamily: 'IBM Plex Sans, system-ui, sans-serif',
+                      fontSize: 13,
+                      fontWeight: seleccionado ? 600 : 400,
+                      opacity: pasado ? 0.25 : 1,
+                      color: seleccionado
+                        ? '#fff'
+                        : pasado
+                        ? 'var(--cds-text-disabled, #8d8d8d)'
+                        : 'var(--cds-text-primary)'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!pasado && !seleccionado)
+                        e.currentTarget.style.background = 'var(--cds-layer-hover-02)'
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!pasado && !seleccionado)
+                        e.currentTarget.style.background = 'transparent'
+                    }}
+                  >
+                    {dia}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function CalNav({
+  onClick,
+  dir
+}: {
+  onClick: () => void
+  dir: 'prev' | 'next'
+}): React.JSX.Element {
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      type="button"
+      aria-label={dir === 'prev' ? 'Mes anterior' : 'Mes siguiente'}
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        width: 32,
+        height: 32,
+        border: 'none',
+        background: hover ? 'var(--cds-layer-hover-02)' : 'transparent',
+        borderRadius: 4,
+        cursor: 'pointer',
+        color: 'var(--cds-icon-primary)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'background 70ms'
+      }}
+    >
+      <svg width="16" height="16" viewBox="0 0 32 32" fill="currentColor">
+        {dir === 'prev' ? (
+          <path d="M20 24l-1.4-1.4L11.8 16l6.8-6.6L20 8l-8 8z" />
+        ) : (
+          <path d="M12 8l1.4 1.4L20.2 16l-6.8 6.6L12 24l8-8z" />
+        )}
+      </svg>
+    </button>
+  )
+}
+
+/* ---- ClienteCombo (selector de cliente con búsqueda) --------------------- */
+function ClienteCombo({
+  value,
+  onChange
+}: {
+  value: string
+  onChange: (v: string) => void
+}): React.JSX.Element {
+  const { data } = useVV()
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const results = data.clientes
+    .filter((c) => c.nombre.toLowerCase().includes(q.toLowerCase()))
+    .slice(0, 8)
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <span
+        style={{
+          fontSize: 12,
+          letterSpacing: '.32px',
+          color: 'var(--cds-text-secondary)',
+          display: 'block',
+          marginBottom: 6
+        }}
+      >
+        Cliente
+      </span>
+      <div style={{ position: 'relative' }}>
+        <input
+          value={open ? q : value}
+          placeholder="Buscar cliente…"
+          onFocus={() => {
+            setOpen(true)
+            setQ('')
+          }}
+          onChange={(e) => {
+            setQ(e.target.value)
+            onChange(e.target.value)
+          }}
+          style={{
+            height: 40,
+            width: '100%',
+            boxSizing: 'border-box',
+            background: 'var(--cds-field-01)',
+            border: 'none',
+            borderBottom:
+              value &&
+              !data.clientes.some(
+                (c) => c.nombre.toLowerCase().trim() === value.toLowerCase().trim()
+              )
+                ? '2px solid var(--cds-support-error)'
+                : '1px solid var(--cds-border-strong-01)',
+            padding: '0 40px 0 16px',
+            fontFamily: 'IBM Plex Sans, system-ui, sans-serif',
+            fontSize: 14,
+            color: 'var(--cds-text-primary)',
+            outline: 'none'
+          }}
+        />
+        <span
+          style={{
+            position: 'absolute',
+            right: 14,
+            top: 12,
+            color: 'var(--cds-icon-primary)',
+            pointerEvents: 'none',
+            display: 'flex'
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 32 32" fill="currentColor">
+            <path d="M29 27.586l-7.552-7.552A11 11 0 1027.586 29zm-17-4a9 9 0 110-18 9 9 0 010 18z" />
+          </svg>
+        </span>
+      </div>
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 59 }} onClick={() => setOpen(false)} />
+          <div
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              marginTop: 2,
+              maxHeight: 240,
+              overflow: 'auto',
+              background: 'var(--cds-layer-02)',
+              border: '1px solid var(--cds-border-subtle-01)',
+              boxShadow: '0 4px 16px var(--cds-shadow, rgba(0,0,0,0.4))',
+              zIndex: 60
+            }}
+          >
+            {results.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  onChange(c.nombre)
+                  setOpen(false)
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontFamily: 'IBM Plex Sans, system-ui, sans-serif'
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = 'var(--cds-layer-hover-02)')
+                }
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <Avatar ini={c.ini} size={28} seed={c.id} />
+                <span style={{ fontSize: 14, color: 'var(--cds-text-primary)' }}>{c.nombre}</span>
+              </button>
+            ))}
+            {results.length === 0 && (
+              <div style={{ padding: 16, fontSize: 13, color: 'var(--cds-text-helper)' }}>
+                Sin coincidencias.
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 /* ---- CrearRecordatorioForm ----------------------------------------------- */
 interface FormState {
   tipo: Motivo
   cliente: string
   fecha: string
   canal: 'WhatsApp' | 'Email'
+  mensaje: string
 }
 
 export function CrearRecordatorioForm({
   state,
-  set
+  set,
+  errorMsg
 }: {
   state: FormState
   set: (patch: Partial<FormState>) => void
+  errorMsg?: string
 }): React.JSX.Element {
+  const { data } = useVV()
+  const selectedCli = data.clientes.find(
+    (c) => c.nombre.toLowerCase().trim() === state.cliente.toLowerCase().trim()
+  )
+
   const tipos: {
     key: Motivo
     label: string
@@ -1247,13 +1679,13 @@ export function CrearRecordatorioForm({
   }[] = [
     {
       key: 'control',
-      label: 'Control anual',
+      label: '👁️ Control anual',
       desc: 'Recordatorio de examen visual anual',
       Icon: View as React.ComponentType<{ size?: number }>
     },
     {
       key: 'cumple',
-      label: 'Cumpleaños',
+      label: '🎂 Cumpleaños',
       desc: 'Tarjeta y promoción personalizada',
       Icon: (({ size }: { size?: number }) => (
         <svg width={size ?? 18} height={size ?? 18} viewBox="0 0 32 32" fill="currentColor">
@@ -1263,17 +1695,11 @@ export function CrearRecordatorioForm({
     },
     {
       key: 'postventa',
-      label: 'Post-entrega',
+      label: '📦 Post-entrega',
       desc: 'Seguimiento de adaptación de lentes',
       Icon: Time as React.ComponentType<{ size?: number }>
     }
   ]
-
-  const msg: Record<Motivo, string> = {
-    control: `Hola ${state.cliente.split(' ')[0]}, en Opticalia notamos que ya pasó un año de tu último control visual. Te invitamos a agendar tu examen anual — la primera cita no tiene costo.`,
-    cumple: `¡Feliz cumpleaños, ${state.cliente.split(' ')[0]}! Como cliente de Opticalia tienes 20% de descuento en monturas durante todo tu mes. Te esperamos.`,
-    postventa: `Hola ${state.cliente.split(' ')[0]}, queremos saber cómo va tu adaptación a tus nuevos lentes. Si sientes alguna molestia, agenda una revisión sin costo con nosotros.`
-  }
 
   return (
     <div style={{ display: 'grid', gap: 24 }}>
@@ -1300,7 +1726,12 @@ export function CrearRecordatorioForm({
                   width: 32,
                   height: 32,
                   flexShrink: 0,
-                  background: state.tipo === t.key ? '#0f62fe' : 'var(--cds-layer-accent-01)',
+                  borderRadius: 8,
+                  background:
+                    state.tipo === t.key
+                      ? 'var(--cds-button-primary)'
+                      : 'var(--cds-layer-accent-01)',
+                  color: state.tipo === t.key ? '#fff' : 'var(--cds-icon-primary)',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center'
@@ -1334,13 +1765,8 @@ export function CrearRecordatorioForm({
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <CarbonSelect
-          label="Cliente"
-          value={state.cliente}
-          onChange={(v) => set({ cliente: v })}
-          options={VV_CLIENTES.map((c) => c.nombre)}
-        />
-        <TextInput label="Fecha de envío" value={state.fecha} onChange={(v) => set({ fecha: v })} />
+        <ClienteCombo value={state.cliente} onChange={(v) => set({ cliente: v })} />
+        <DateField label="Fecha de envío" value={state.fecha} onChange={(v) => set({ fecha: v })} />
       </div>
 
       <div>
@@ -1362,6 +1788,23 @@ export function CrearRecordatorioForm({
             ] satisfies { k: 'WhatsApp' | 'Email'; d: string }[]
           ).map((c) => (
             <RadioTile key={c.k} selected={state.canal === c.k} onClick={() => set({ canal: c.k })}>
+              <span
+                style={{
+                  width: 32,
+                  height: 32,
+                  flexShrink: 0,
+                  borderRadius: 8,
+                  background: VV_CANAL_COLOR[c.k].hex,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 700
+                }}
+              >
+                {c.k === 'WhatsApp' ? 'W' : '@'}
+              </span>
               <div>
                 <div
                   style={{
@@ -1390,36 +1833,100 @@ export function CrearRecordatorioForm({
       <div>
         <div
           style={{
-            fontSize: 12,
-            letterSpacing: '.32px',
-            color: 'var(--cds-text-secondary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
             marginBottom: 8
           }}
         >
-          Vista previa del mensaje
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span
+              style={{ fontSize: 12, letterSpacing: '.32px', color: 'var(--cds-text-secondary)' }}
+            >
+              Mensaje a enviar
+            </span>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                height: 20,
+                padding: '0 8px',
+                borderRadius: 10,
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#fff',
+                background: VV_CANAL_COLOR[state.canal].hex
+              }}
+            >
+              {state.canal === 'WhatsApp' ? '🟢 vía WhatsApp' : '🔵 vía Email'}
+            </span>
+          </div>
+          <span style={{ fontSize: 12, color: 'var(--cds-text-secondary)' }}>
+            {state.canal === 'WhatsApp' ? (
+              <>Enviar a: <b>{selectedCli?.tel ?? '+57 300 000 0000'}</b></>
+            ) : (
+              <>Enviar a: <b>{selectedCli?.email ?? 'correo@ejemplo.com'}</b></>
+            )}
+          </span>
         </div>
-        <div
+        <textarea
+          value={state.mensaje}
+          onChange={(e) => set({ mensaje: e.target.value })}
           style={{
-            background: 'var(--cds-field-01)',
-            borderLeft: '3px solid var(--cds-border-interactive)',
-            padding: 16,
+            width: '100%',
+            height: 110,
+            background:
+              state.canal === 'WhatsApp' ? 'rgba(36,161,72,0.06)' : 'rgba(15,98,254,0.06)',
+            border: `1px solid ${VV_CANAL_COLOR[state.canal].hex}`,
+            borderLeft: `4px solid ${VV_CANAL_COLOR[state.canal].hex}`,
+            borderRadius: state.canal === 'WhatsApp' ? '4px 12px 12px 12px' : 4,
+            padding: 12,
             fontSize: 14,
             lineHeight: 1.5,
-            color: 'var(--cds-text-primary)'
+            color: 'var(--cds-text-primary)',
+            fontFamily: 'IBM Plex Sans, system-ui, sans-serif',
+            outline: 'none',
+            resize: 'vertical'
+          }}
+        />
+      </div>
+
+      {errorMsg && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 12px',
+            background: 'var(--cds-layer-accent-01)',
+            borderLeft: '4px solid var(--cds-support-error)',
+            fontSize: 13,
+            color: 'var(--cds-support-error)',
+            marginTop: 4
           }}
         >
-          {msg[state.tipo]}
+          <svg width="16" height="16" viewBox="0 0 32 32" fill="currentColor">
+            <path d="M16 2a14 14 0 1014 14A14 14 0 0016 2zm-1 7h2v10h-2zm1 14.5a1.5 1.5 0 111.5-1.5 1.5 1.5 0 01-1.5 1.5z" />
+          </svg>
+          <span>{errorMsg}</span>
         </div>
-      </div>
+      )}
     </div>
   )
 }
 
 /* ---- ClienteDetalle (side panel content) --------------------------------- */
-export function ClienteDetalle({ cli }: { cli: Cliente }): React.JSX.Element {
+export function ClienteDetalle({
+  cli,
+  hist: histProp
+}: {
+  cli: Cliente
+  hist?: MensajeHistorial[]
+}): React.JSX.Element {
   const seg = VV_SEG[cli.seg]
   const mot = cli.motivo ? VV_MOTIVO[cli.motivo] : null
-  const hist = VV_HISTORIAL.filter((h) => h.cli === cli.id)
+  const hist = histProp ?? VV_HISTORIAL.filter((h) => h.cli === cli.id)
   const rows: [string, string][] = [
     ['Teléfono', cli.tel],
     ['Correo', cli.email],
@@ -1441,7 +1948,7 @@ export function ClienteDetalle({ cli }: { cli: Cliente }): React.JSX.Element {
           borderBottom: '1px solid var(--cds-border-subtle-01)'
         }}
       >
-        <Avatar ini={cli.ini} size={56} bg="#0f62fe" />
+        <Avatar ini={cli.ini} size={56} seed={cli.id} />
         <div>
           <div
             style={{

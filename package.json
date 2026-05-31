@@ -1,10 +1,10 @@
 {
   "name": "veravision-app",
   "version": "1.0.0",
-  "description": "An Electron application with React and TypeScript",
+  "description": "VeraVision · Opticalia — prototipo de escritorio (HCI) para retención de clientes, con Electron, React, TypeScript e IBM Carbon",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "Equipo VeraVision",
+  "homepage": "https://github.com/maosuarez/veravision-app",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
